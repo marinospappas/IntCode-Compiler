@@ -1,0 +1,12 @@
+program test1
+
+var a: int
+var b: int
+
+main {
+    readln a
+    b = a * a + (a - 2)*(a+3) - 2*a
+    println b
+}
+
+endprogram

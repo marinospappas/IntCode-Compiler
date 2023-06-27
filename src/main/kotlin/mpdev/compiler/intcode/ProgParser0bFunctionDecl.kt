@@ -39,7 +39,7 @@ fun parseFunDecl() {
         identifiersMap[functionName] = IdentifierDecl(TokType.function, funType)
         if (!isExternal) {    // external functions do not have body
             declareFun(functionName, isPackageGlobal)
-            storeParamsToStack(functionName)
+            //storeParamsToStack(functionName)
             parseFunctionBlock()
         }
     }

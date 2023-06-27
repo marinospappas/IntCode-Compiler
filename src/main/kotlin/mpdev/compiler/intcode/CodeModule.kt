@@ -1,6 +1,5 @@
 package mpdev.compiler.intcode
 
-import java.awt.Label
 import java.io.PrintStream
 
 /** code module interface - defines the functions needed to generate assembly code */

@@ -9,13 +9,13 @@ fun parseFunctionCall(): DataType {
     val funcName = inp.match(Kwd.identifier).value
     inp.match(Kwd.leftParen)
     parseAssignFunParams(funcName)
-    setInpFunParams(funcName)
+    //setInpFunParams(funcName)
     inp.match(Kwd.rightParen)
     val returnLabel = newLabel()
     code.callFunction(funcName, returnLabel)
     postLabel(returnLabel)
     restoreFunctionStackParams(funcName)
-    restoreParamRegisters(funcName)
+    //restoreParamRegisters(funcName)
     return getType(funcName)
 }
 
@@ -31,25 +31,15 @@ fun parseAssignFunParams(functionName: String) {
         val paramExprType = parseBooleanExpression()
         if (paramExprType != paramTypeList[i].type)
             abort("line ${inp.currentLineNumber}: parameter #${i + 1} must be type ${paramTypeList[i].type}, found $paramExprType")
-        // all params but the last one are saved to temp registers
-        // the last param remains in the accumulator
-        if (i < paramTypeList.size - 1)
-            code.setIntTempFunParam(i)
-       //     when (paramExprType) {
-         //       DataType.int, DataType.byte, DataType.memptr -> code.setIntTempFunParam(i)      // the same code is used for int, memptr and for string parameters
-           //     DataType.intarray, DataType.bytearray -> {
-             //       code.setIntTempFunParam(i)
-               // }
-             //   DataType.string -> code.setIntTempFunParam(i)   // i.e. moves %rax to the appropriate register for this parameter
-               // else -> {}
-           // }
+        // all params are pushed to the stack (each value is in the accumulator)
+        code.saveAccumulator()
     }
 }
 
 /** set the registers to pass the parameter values as per assembler spec */
 fun setInpFunParams(functionName: String) {
     val paramTypeList = funParamsMap[functionName] ?: listOf()
-    if (paramTypeList.size > 0)
+    if (paramTypeList.isNotEmpty())
         code.setFunParamRegFromAcc(paramTypeList.size-1)    // last param is still in accumulator
     for (i in 0 until paramTypeList.size-1)
         code.setFunParamRegFromTempReg(i)

@@ -26,13 +26,14 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
     var SP = 10_000        // Stack Pointer
     var heap = 1_000_000   // Start of Heap
     // registers
-    var A = SP - 1          // Accumulator
-    var B = SP - 2          // Reg B
-    var C = SP - 3          // Reg C
-    var D = SP - 4          // Reg C
-    var E = SP - 5          // Reg C
-    var Z = SP - 6          // Zero flag
-    var S = SP - 7          // Sign flag
+    var BP = SP - 1         // Base Pointer
+    var A = SP - 2          // Accumulator
+    var B = SP - 3          // Reg B
+    var C = SP - 4          // Reg C
+    var D = SP - 5          // Reg C
+    var E = SP - 6          // Reg C
+    var Z = SP - 7          // Zero flag
+    var S = SP - 8          // Sign flag
 
     private val globalVars = mutableMapOf<String,Int>()
     private var globalVarsIndx = 0
@@ -132,7 +133,7 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
     // 6 params maximum allowed
     override val MAX_FUN_PARAMS = funInpParamsCpuRegisters.size
 
-    /** initialisation code for assembler */
+    /** initialisation code for intcode vm */
     override fun progInit(progOrLib: String, progName: String) {
         outputComment(CODE_ID)
         outputComment("$progOrLib $progName")
@@ -168,19 +169,27 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
     /** declare function */
     override fun declareAsmFun(name: String) {
         outputLabel(name)
-        //outputCodeTab("pushq\t%rbx\t\t")
-        //outputCommentNl("save \"callee\"-save registers")
-        //newStackFrame()
-    }
-
-    /** transfer a function parameter to stack variable */
-    override fun storeFunParamToStack(paramIndx: Int, stackOffset: Int) {
-        //outputCodeTabNl("movq\t${funInpParamsCpuRegisters[paramIndx]}, $stackOffset(%rbp)")
+        newStackFrame()
+        pushToStack(B)
     }
 
     /** end of function - tidy up stack */
     private fun funEnd() {
-        //restoreStackFrame()
+        popFromStack(B)
+        restoreStackFrame()
+    }
+
+    /** set new stack frame */
+    private fun newStackFrame() {
+        pushToStack(BP)
+        copyMemory(SP, BP)
+        stackVarOffset = 0  // reset the offset for stack vars in this new frame
+    }
+
+    /** restore stack frame */
+    private fun restoreStackFrame() {
+        copyMemory(BP, SP)
+        popFromStack(BP)
     }
 
     /** set a temporary function param register to the value of %rax (the result of the last expression) */
@@ -221,46 +230,59 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
     /** create relative addresses for global vars */
     override fun createRelativeAddresses() {}
 
-    /*
-    /** set new stack frame */
-    private fun newStackFrame() {
-        outputCodeTab("pushq\t%rbp\t\t")
-        outputCommentNl("new stack frame")
-        outputCodeTabNl("movq\t%rsp, %rbp")
-        stackVarOffset = 0  // reset the offset for stack vars in this new frame
-    }
-
-    /** restore stack frame */
-    private fun restoreStackFrame() {
-        outputCodeTab("movq\t%rbp, %rsp\t\t")
-        outputCommentNl("restore stack frame")
-        outputCodeTabNl("popq\t%rbp")
-    }
-     */
-
-    /*
     /**
      * allocate variable space in the stack
      * returns the new stack offset for this new variable
      */
     override fun allocateStackVar(size: Int): Int {
-        outputCodeTabNl("subq\t$${size}, %rsp")
+        val paramMode = POS.intValue * 100 + IMMED.intValue * 10 + POS.intValue
+        val opCode = paramMode * 100 + OpCode.ADD.intValue
+        outputCode(listOf(opCode,SP,-size,SP))
         stackVarOffset -= size
         return stackVarOffset
     }
 
     /** release variable space in the stack */
     override fun releaseStackVar(size: Int) {
-        outputCodeTabNl("addq\t$${size}, %rsp")
+        val paramMode = POS.intValue * 100 + IMMED.intValue * 10 + POS.intValue
+        val opCode = paramMode * 100 + OpCode.ADD.intValue
+        outputCode(listOf(opCode,SP,size,SP))
         stackVarOffset += size
     }
 
     /** initiliase an int stack var */
     override fun initStackVarInt(stackOffset : Int, initValue: String) {
-        outputCodeTab("movq\t$$initValue, ")
-        if (stackOffset != 0)
-            outputCode("$stackOffset")
-        outputCodeNl("(%rbp)")
+        val paramMode = POS.intValue * 100 + IMMED.intValue * 10 + IMMED.intValue   // get value to A
+        val opCode = paramMode * 100 + OpCode.ADD.intValue
+        outputCode(listOf(opCode,initValue.toInt(),0,A))
+        assignmentLocalVar(stackOffset)                 // set the local var from A
+    }
+
+    /*
+
+ /** set a function input param register from the temporary register */
+    override fun setFunParamRegFromTempReg(paramIndx: Int) {
+                                   // parameter goes in the stack
+            outputCodeTabNl("str\t${funTempParamsCpuRegisters[paramIndx]}, [sp, #-4]!")
+    }
+
+    /** set a function input param register from the accumulator */
+    override fun setFunParamRegFromAcc(paramIndx: Int) {
+                                   // parameter goes in the stack
+            outputCodeTabNl("str\tr3, [sp, #-4]!")
+    }
+
+    /** restore a function temporary param register */
+    override fun restoreFunTempParamReg(paramIndx: Int) {
+        outputCodeTab("ldr\t${funTempParamsCpuRegisters[paramIndx]}, [sp], #4\t")
+        outputCommentNl("restore temp param register ${funTempParamsCpuRegisters[paramIndx]} from stack")
+    }
+
+    /** restore the stack space used a function stack param */
+    override fun restoreFunStackParam(paramIndx: Int) {
+          // parameter is in stack
+            outputCodeTab("add\tsp, sp,#4\t")
+            outputCommentNl("restore stack param space")
     }
      */
 
@@ -377,7 +399,16 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
         val opCode = paramMode * 100 + OpCode.ADD.intValue
         val varAddress = globalVars[identifier] ?: 0
         outputCode(listOf(opCode,varAddress,0,A))
-        // also set flags - Z flag set = FALSE
+    }
+
+    /** set accumulator to local int variable (stack variable) */
+    override fun setAccumulatorToLocalVar(offset: Int) {
+        var paramMode = POS.intValue * 100 + IMMED.intValue * 10 + POS.intValue     // calculate address to E reg
+        var opCode = paramMode * 100 + OpCode.ADD.intValue
+        outputCode(listOf(opCode,BP,offset,E))
+        paramMode = POS.intValue * 100 + IMMED.intValue * 10 + POS.intValue         // get value to A
+        opCode = paramMode * 100 + OpCode.ADD.intValue
+        outputCode(listOf(opCode,E,0,A))
     }
 
     /** set int variable to accumulator */
@@ -386,6 +417,16 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
         val opCode = paramMode * 100 + OpCode.ADD.intValue
         val varAddress = globalVars[identifier] ?: 0
         outputCode(listOf(opCode,A,0,varAddress))
+    }
+
+    /** set int stack variable (local variable) to accumulator */
+    override fun assignmentLocalVar(offset: Int) {
+        var paramMode = POS.intValue * 100 + IMMED.intValue * 10 + POS.intValue     // calculate address to E reg
+        var opCode = paramMode * 100 + OpCode.ADD.intValue
+        outputCode(listOf(opCode,BP,offset,E))
+        paramMode = POS.intValue * 100 + IMMED.intValue * 10 + POS.intValue         // store value from A
+        opCode = paramMode * 100 + OpCode.ADD.intValue
+        outputCode(listOf(opCode,E,0,A))
     }
 
     /** read int into global variable */
@@ -545,15 +586,6 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
         outputCodeTabNl("movq\t(%rcx), %rax")
     }
 
-    /** set accumulator to local int variable */
-    override fun setAccumulatorToLocalVar(offset: Int) {
-        outputCodeTab("movq\t")
-        if (offset != 0)
-            outputCode("$offset")
-        outputCodeNl("(%rbp), %rax")
-        outputCodeTabNl("testq\t%rax, %rax")    // also set flags - Z flag set = FALSE
-    }
-
     override fun setAccumulatorToLocalArrayVar(offset: Int) {
         // index already in %rcx
         outputCodeTab("movq\t")
@@ -590,17 +622,6 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
         if (offset != 0)
             outputCode("$offset")
         outputCodeNl("(%rbp), %rax")
-    }
-
-    /** set int variable to accumulator */
-    override fun assignment(identifier: String) = outputCodeTabNl("movq\t%rax, ${identifier}(%rip)")
-
-    /** set int stack variable to accumulator */
-    override fun assignmentLocalVar(offset: Int) {
-        outputCodeTab("movq\t%rax, ")
-        if (offset != 0)
-            outputCode("$offset")
-        outputCodeNl("(%rbp)")
     }
 
     /** set int array element to accumulator */

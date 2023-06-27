@@ -107,6 +107,6 @@ fun main(args: Array<String>) {
         parseProgram()
         code.writeCode()
     }
-    println("Successful compilation, $inFile: ${inp.currentLineNumber-1} source lines, $outFile: ${code.PC+1} IntCode codes")
+    println("Successful compilation, $inFile: ${inp.currentLineNumber-1} source lines, $outFile: ${code.PC} int.codes")
     println("Completed in: $elapsedTime milliseconds")
 }

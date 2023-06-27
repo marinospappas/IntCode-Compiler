@@ -497,6 +497,11 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
         labelsMap[label] = E
     }
 
+    /** end of program */
+    override fun progEnd(libOrProg: String) {
+        outputComment("size: $PC")
+    }
+
     /*
     /** set accumulator to static int array variable value */
     override fun setAccumulatorToArrayVar(identifier: String) {
@@ -712,12 +717,6 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
             outputCode("$stackOffset")
         outputCodeNl("(%rbp), %rdi\t\t# address of the variable to be read")
         outputCodeTabNl("call\tread_i_")
-    }
-
-    /** end of program */
-    override fun progEnd(libOrProg: String) {
-        outputCodeNl()
-        outputCommentNl("end $libOrProg")
     }
 
     ////////// string operations ///////////////////////

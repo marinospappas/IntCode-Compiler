@@ -20,6 +20,8 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
     override var code = mutableListOf<Any>()
     override val labelsMap = mutableMapOf<String,Int>()
 
+    private val mainEntryPoint = "__main__start"
+
     // IntCode specific variables
     var SP = 10_000        // Stack Pointer
     var heap = 1_000_000   // Start of Heap
@@ -66,6 +68,20 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
 
     // intcode specific functions
 
+    /*
+    Opcode 3 takes a single integer as input and saves it to the position given by its only parameter.
+            For example, the instruction 3,50 would take an input value and store it at address 50.
+    Opcode 4 outputs the value of its only parameter.
+            For example, the instruction 4,50 would output the value at address 50.
+    Opcode 5 is jump-if-true: if the first parameter is non-zero, it sets the instruction pointer to the value from the second parameter.
+            Otherwise, it does nothing.
+    Opcode 6 is jump-if-false: if the first parameter is zero, it sets the instruction pointer to the value from the second parameter.
+            Otherwise, it does nothing.
+    Opcode 7 is less than: if the first parameter is less than the second parameter, it stores 1 in the position given by the third parameter.
+            Otherwise, it stores 0.
+    Opcode 8 is equals: if the first parameter is equal to the second parameter, it stores 1 in the position given by the third parameter.
+            Otherwise, it stores 0.
+    */
     enum class OpCode(val intValue: Int) {
         ADD(1), MULT(2), IN(3), OUT(4), JIT(5), JIF(6), LT(7), EQ(8),
         REL(9), DIV(10), EXIT(99)
@@ -80,28 +96,28 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
         outputCode(listOf(opCode,srcAddr,0,destAddr))
     }
 
-    fun pushAccumulator() {
+    fun pushToStack(address: Int) {
         var paramMode = IMMED.intValue
         var opCode = paramMode * 100 + REL.intValue
         outputCode(listOf(opCode,1))
         paramMode = IND.intValue * 100 + IMMED.intValue * 10 + POS.intValue
         opCode = paramMode * 100 + OpCode.ADD.intValue
-        outputCode(listOf(opCode,A,0,0))
+        outputCode(listOf(opCode,address,0,0))
     }
 
-    fun popAccumulator() {
-        var paramMode = POS.intValue * 100 + IMMED.intValue * 10 + IND.intValue
-        var opCode = paramMode * 100 + OpCode.ADD.intValue
-        outputCode(listOf(opCode,0,0,A))
-        paramMode = IMMED.intValue
-        opCode = paramMode * 100 + REL.intValue
-        outputCode(listOf(opCode,-1))
+    fun pushNumberToStack(value: Any) {
+        var paramMode = IMMED.intValue
+        var opCode = paramMode * 100 + REL.intValue
+        outputCode(listOf(opCode,1))
+        paramMode = IND.intValue * 100 + IMMED.intValue * 10 + IMMED.intValue
+        opCode = paramMode * 100 + OpCode.ADD.intValue
+        outputCode(listOf(opCode,value,0,0))
     }
 
-    fun popB() {
+    fun popFromStack(address: Int) {
         var paramMode = POS.intValue * 100 + IMMED.intValue * 10 + IND.intValue
         var opCode = paramMode * 100 + OpCode.ADD.intValue
-        outputCode(listOf(opCode,0,0,B))
+        outputCode(listOf(opCode,0,0,address))
         paramMode = IMMED.intValue
         opCode = paramMode * 100 + REL.intValue
         outputCode(listOf(opCode,-1))
@@ -121,6 +137,7 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
         outputComment(CODE_ID)
         outputComment("$progOrLib $progName")
         outputComment("compiled on ${Date()}")
+        jump(mainEntryPoint)
     }
 
     /** declare int variable (64bit) */
@@ -148,59 +165,50 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
         labelsMap[s] = PC
     }
 
-    /*
     /** declare function */
     override fun declareAsmFun(name: String) {
-        outputCommentNl("function $name")
         outputLabel(name)
-        outputCodeTab("pushq\t%rbx\t\t")
-        outputCommentNl("save \"callee\"-save registers")
-        newStackFrame()
+        //outputCodeTab("pushq\t%rbx\t\t")
+        //outputCommentNl("save \"callee\"-save registers")
+        //newStackFrame()
     }
 
     /** transfer a function parameter to stack variable */
     override fun storeFunParamToStack(paramIndx: Int, stackOffset: Int) {
-        outputCodeTabNl("movq\t${funInpParamsCpuRegisters[paramIndx]}, $stackOffset(%rbp)")
+        //outputCodeTabNl("movq\t${funInpParamsCpuRegisters[paramIndx]}, $stackOffset(%rbp)")
     }
 
     /** end of function - tidy up stack */
     private fun funEnd() {
-        restoreStackFrame()
-        outputCodeTab("popq\t%rbx\t\t")
-        outputCommentNl("restore \"callee\"-save registers")
+        //restoreStackFrame()
     }
 
     /** set a temporary function param register to the value of %rax (the result of the last expression) */
     override fun setIntTempFunParam(paramIndx: Int) {
-        outputCodeTab("pushq\t${funTempParamsCpuRegisters[paramIndx]}\t")
-        outputCommentNl("save temp param register ${funTempParamsCpuRegisters[paramIndx]} to stack")
-        outputCodeTabNl("movq\t%rax, ${funTempParamsCpuRegisters[paramIndx]}")
+        //outputCodeTab("pushq\t${funTempParamsCpuRegisters[paramIndx]}\t")
+        //outputCodeTabNl("movq\t%rax, ${funTempParamsCpuRegisters[paramIndx]}")
     }
 
     /** set a function input param register from the temporary register */
     override fun setFunParamRegFromTempReg(paramIndx: Int) {
-        outputCodeTabNl("movq\t${funTempParamsCpuRegisters[paramIndx]}, ${funInpParamsCpuRegisters[paramIndx]}")
+        //outputCodeTabNl("movq\t${funTempParamsCpuRegisters[paramIndx]}, ${funInpParamsCpuRegisters[paramIndx]}")
     }
 
     /** set a function input param register from accumulator */
     override fun setFunParamRegFromAcc(paramIndx: Int) {
-        outputCodeTabNl("movq\t%rax, ${funInpParamsCpuRegisters[paramIndx]}")
+        //outputCodeTabNl("movq\t%rax, ${funInpParamsCpuRegisters[paramIndx]}")
     }
 
     /** restore a function input param register */
     override fun restoreFunTempParamReg(paramIndx: Int) {
         if (funTempParamsCpuRegisters[paramIndx] == "%rax")
             return
-        outputCodeTab("popq\t${funTempParamsCpuRegisters[paramIndx]}\t")
-        outputCommentNl("restore temp param register ${funTempParamsCpuRegisters[paramIndx]} from stack")
+        //outputCodeTab("popq\t${funTempParamsCpuRegisters[paramIndx]}\t")
     }
-
-    override fun globalSymbol(name: String) {
-    }
-     */
 
     /** initial code for main */
     override fun mainInit() {
+        outputLabel(mainEntryPoint)
         val opCode = IMMED.intValue*100 + REL.intValue
         outputCode(listOf(opCode,SP))
     }
@@ -291,11 +299,11 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
     }
 
     /** push accumulator to the stack */
-    override fun saveAccumulator() = pushAccumulator()
+    override fun saveAccumulator() = pushToStack(A)
 
     /** add top of stack to accumulator */
     override fun addToAccumulator() {
-        popB()
+        popFromStack(B)
         val paramMode = POS.intValue * 100 + POS.intValue * 10 + POS.intValue
         val opCode = paramMode * 100 + OpCode.ADD.intValue
         outputCode(listOf(opCode,A,B,A))
@@ -303,7 +311,7 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
 
     /** subtract top of stack from accumulator */
     override fun subFromAccumulator() {
-        popB()
+        popFromStack(B)
         var paramMode = POS.intValue * 100 + IMMED.intValue * 10 + POS.intValue
         var opCode = paramMode * 100 + MULT.intValue
         outputCode(listOf(opCode,A,-1,A))
@@ -321,7 +329,7 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
 
     /** multiply accumulator by top of stack */
     override fun multiplyAccumulator() {
-        popB()
+        popFromStack(B)
         val paramMode = POS.intValue * 100 + POS.intValue * 10 + POS.intValue
         val opCode = paramMode * 100 + MULT.intValue
         outputCode(listOf(opCode,A,B,A))
@@ -329,7 +337,7 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
 
     /** divide accumulator by top of stack */
     override fun divideAccumulator() {
-        popB()
+        popFromStack(B)
         val paramMode = POS.intValue * 100 + POS.intValue * 10 + POS.intValue
         val opCode = paramMode * 100 + DIV.intValue
         outputCode(listOf(opCode,A,B,A))
@@ -395,19 +403,9 @@ class IntcodeInstructions(outFile: String = ""): CodeModule {
         outputCode(listOf(opCode,A))
     }
 
-    /*
-    Opcode 5 is jump-if-true: if the first parameter is non-zero, it sets the instruction pointer to the value from the second parameter.
-    Otherwise, it does nothing.
-Opcode 6 is jump-if-false: if the first parameter is zero, it sets the instruction pointer to the value from the second parameter.
-Otherwise, it does nothing.
-Opcode 7 is less than: if the first parameter is less than the second parameter, it stores 1 in the position given by the third parameter.
-Otherwise, it stores 0.
-Opcode 8 is equals: if the first parameter is equal to the second parameter, it stores 1 in the position given by the third parameter.
-Otherwise, it stores 0.
-     */
     /** compare and set accumulator and flags - is equal to */
     override fun compareEquals() {
-        popB()
+        popFromStack(B)
         val paramMode = POS.intValue * 100 + POS.intValue * 10 + POS.intValue
         val opCode = paramMode * 100 + EQ.intValue
         outputCode(listOf(opCode,A,B,Z))    // Z flag will be 1 if false (i.e. if A<>B)
@@ -415,7 +413,7 @@ Otherwise, it stores 0.
 
     /** compare and set accumulator and flags - is not equal to */
     override fun compareNotEquals() {
-        popB()
+        popFromStack(B)
         var paramMode = POS.intValue * 100 + POS.intValue * 10 + POS.intValue
         var opCode = paramMode * 100 + EQ.intValue
         outputCode(listOf(opCode,A,B,Z))
@@ -426,7 +424,7 @@ Otherwise, it stores 0.
 
     /** compare and set accumulator and flags - is less than */
     override fun compareLess() {
-        popB()
+        popFromStack(B)
         val paramMode = POS.intValue * 100 + POS.intValue * 10 + POS.intValue
         val opCode = paramMode * 100 + LT.intValue
         outputCode(listOf(opCode,B,A,Z))    // Z flag will be 1 if false (i.e. if A>=B)
@@ -434,7 +432,7 @@ Otherwise, it stores 0.
 
     /** compare and set accumulator and flags - is less than or equal to */
     override fun compareLessEqual() {
-        popB()
+        popFromStack(B)
         var paramMode = POS.intValue * 100 + POS.intValue * 10 + POS.intValue
         var opCode = paramMode * 100 + LT.intValue
         outputCode(listOf(opCode,A,B,S))
@@ -445,7 +443,7 @@ Otherwise, it stores 0.
 
     /** compare and set accumulator and flags - is greater than */
     override fun compareGreater() {
-        popB()
+        popFromStack(B)
         val paramMode = POS.intValue * 100 + POS.intValue * 10 + POS.intValue
         val opCode = paramMode * 100 + LT.intValue
         outputCode(listOf(opCode,A,B,Z))    // Z flag will be 1 if false (i.e. if A<=B)
@@ -453,7 +451,7 @@ Otherwise, it stores 0.
 
     /** compare and set accumulator and flags - is greater than or equal to */
     override fun compareGreaterEqual() {
-        popB()
+        popFromStack(B)
         var paramMode = POS.intValue * 100 + POS.intValue * 10 + POS.intValue
         var opCode = paramMode * 100 + LT.intValue
         outputCode(listOf(opCode,B,A,S))
@@ -471,11 +469,33 @@ Otherwise, it stores 0.
 
     /** branch */
     override fun jump(label: String) {
-        val paramMode = IMMED.intValue * 10 + POS.intValue
+        val paramMode = IMMED.intValue * 10 + IMMED.intValue
         val opCode = paramMode * 100 + JIT.intValue
         outputCode(listOf(opCode,1,label))
     }
 
+    /** jump indirect */
+    override fun jumpInd(label: String) {
+        val paramMode = POS.intValue * 10 + IMMED.intValue
+        val opCode = paramMode * 100 + JIT.intValue
+        outputCode(listOf(opCode,1,label))
+    }
+
+    /** call a function */
+    override fun callFunction(subroutine: String, returnLabel: String) {
+        pushNumberToStack(returnLabel)
+        jump(subroutine)
+    }
+
+    /** return from function */
+    override fun returnFromCall() {
+        funEnd()
+        // pop the return address from stack and jump to it
+        popFromStack(E)
+        val label = "return_to_$E"
+        jumpInd(label)
+        labelsMap[label] = E
+    }
 
     /*
     /** set accumulator to static int array variable value */
@@ -565,15 +585,6 @@ Otherwise, it stores 0.
         if (offset != 0)
             outputCode("$offset")
         outputCodeNl("(%rbp), %rax")
-    }
-
-    /** call a function */
-    override fun callFunction(subroutine: String) = outputCodeTabNl("call\t${subroutine}")
-
-    /** return from function */
-    override fun returnFromCall() {
-        funEnd()
-        outputCodeTabNl("ret")
     }
 
     /** set int variable to accumulator */

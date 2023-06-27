@@ -1,5 +1,6 @@
 package mpdev.compiler.intcode
 
+import java.awt.Label
 import java.io.PrintStream
 
 /** code module interface - defines the functions needed to generate assembly code */
@@ -159,7 +160,7 @@ interface CodeModule {
     /** set accumulator to local variable address */
     fun setAccumulatorToLocalVarAddress(offset: Int) {}
     /** call a function */
-    fun callFunction(subroutine: String) {}
+    fun callFunction(subroutine: String, returnLabel: String) {}
     /** return from function */
     fun returnFromCall() {}
     /** set int variable to accumulator */
@@ -185,6 +186,8 @@ interface CodeModule {
     fun jumpIfFalse(label: String) {}
     /** branch */
     fun jump(label: String) {}
+    /** jump indirect */
+    fun jumpInd(label: String) {}
 
     /** boolean not accumulator */
     fun booleanNotAccumulator() {}
